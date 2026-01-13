@@ -13,7 +13,7 @@ function hideInputError(formElement, inputElement, settings) {
 }
 
 function checkInputValidity(formElement, inputElement, settings) {
-  if (inputElement.validity.valid == false) {
+  if (!inputElement.validity.valid) {
     const errorMessage = (inputElement.validity.patternMismatch) ? 
     inputElement.dataset.errorMessage : inputElement.validationMessage;
     showInputError(formElement, inputElement, errorMessage, settings);
@@ -76,4 +76,3 @@ function enableValidation(settings) {
 }
 
 export { enableValidation, clearValidation };
-
