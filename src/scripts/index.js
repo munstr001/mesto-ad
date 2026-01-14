@@ -6,10 +6,10 @@
   Из index.js не допускается что то экспортировать
 */
 
-import { createCardElement, likeCard } from "./components/card.js";
+import { createCardElement } from "./components/card.js";
 import { openModalWindow, closeModalWindow, setCloseModalWindowEventListeners } from "./components/modal.js";
 import { enableValidation, clearValidation } from "./components/validation.js";
-import { addNewCard, getCardList, getUserInfo, setUserInfo, setUserAvatar, deleteCard } from "./components/api.js";
+import { addNewCard, getCardList, getUserInfo, setUserInfo, setUserAvatar, deleteCard, changeLikeCardStatus } from "./components/api.js";
 
 // DOM узлы
 const placesWrap = document.querySelector(".places__list");
@@ -38,6 +38,21 @@ const avatarFormModalWindow = document.querySelector(".popup_type_edit-avatar");
 const avatarForm = avatarFormModalWindow.querySelector(".popup__form");
 const avatarInput = avatarForm.querySelector(".popup__input");
 
+// Попап статы
+const infoPopup = document.querySelector(".popup_type_info");
+const infoList = infoPopup.querySelector(".popup__info");
+const infoUsersList = infoPopup.querySelector(".popup__list");
+const logo = document.querySelector(".logo");
+
+const infoDefinitionTemplate = document
+  .querySelector("#popup-info-definition-template")
+  .content;
+
+const infoUserTemplate = document
+  .querySelector("#popup-info-user-preview-template")
+  .content;
+
+
 // Айди текущего пользователя
 let currentUserId;
 
@@ -48,8 +63,17 @@ const handlePreviewPicture = ({ name, link }) => {
   openModalWindow(imageModalWindow);
 };
 
+const renderLoading = (button, isLoading, defaultText) => {
+  button.textContent = isLoading ? "Сохранение..." : defaultText;
+};
+
+const renderCreating = (button, isLoading, defaultText) => {
+  button.textContent = isLoading ? "Создание..." : defaultText;
+};
+
 const handleProfileFormSubmit = (evt) => {
   evt.preventDefault();
+  renderLoading(evt.submitter, true);
   setUserInfo({
     name: profileTitleInput.value,
     about: profileDescriptionInput.value,
@@ -61,11 +85,15 @@ const handleProfileFormSubmit = (evt) => {
   })
   .catch((err) => {
     console.log(err);
+  })
+  .finally(() => {
+    renderLoading(evt.submitter, false, "Сохранить");
   });
 };
 
 const handleAvatarFromSubmit = (evt) => {
   evt.preventDefault();
+  renderLoading(evt.submitter, true);
   setUserAvatar({
     avatar: avatarInput.value,
   })
@@ -75,11 +103,15 @@ const handleAvatarFromSubmit = (evt) => {
   })
   .catch((err) => {
     console.log(err);
+  })
+  .finally(() => {
+    renderLoading(evt.submitter, false, "Сохранить");
   });
 };
 
 const handleCardFormSubmit = (evt) => {
   evt.preventDefault();
+  renderCreating(evt.submitter, true);
   addNewCard({
     name: cardNameInput.value,
     link: cardLinkInput.value,
@@ -88,23 +120,84 @@ const handleCardFormSubmit = (evt) => {
     placesWrap.prepend(
       createCardElement(cardData, {
         onPreviewPicture: handlePreviewPicture,
-        onLikeIcon: likeCard,
+        onLikeIcon: handleLikeCard,
         onDeleteCard: handleDeleteCard,
         userId: currentUserId,
       })
     );
     closeModalWindow(cardFormModalWindow);
   })
-
   .catch((err) => {
     console.log(err);
+  })
+  .finally(() => {
+    evt.submitter.textContent = "Создать";
   });
 };
+
+const addInfoItem = (title, value) => {
+  const item = infoDefinitionTemplate.cloneNode(true);
+  item.querySelector(".popup__info-term").textContent = title;
+  item.querySelector(".popup__info-description").textContent = value;
+  infoList.append(item);
+};
+
+const handleOpenInfoPopup = () => {
+  infoList.innerHTML = "";
+  infoUsersList.innerHTML = "";
+
+  getCardList()
+  .then((cards) => {
+    // пользователи
+    const usersMap = {};
+    cards.forEach((card) => {
+      usersMap[card.owner._id] = card.owner.name;
+    });
+
+    const totalUsers = Object.keys(usersMap).length;
+    // лайки
+    let totalLikes = 0;
+    let maxLikes = 0;
+    let champion = "";
+    cards.forEach((card) => {
+      const likesCount = card.likes.length;
+      totalLikes += likesCount;
+      if (likesCount > maxLikes) {
+        maxLikes = likesCount;
+        champion = card.owner.name;
+      }
+    });
+
+    // вывод статистики
+    addInfoItem("Всего пользователей:", totalUsers);
+    addInfoItem("Всего лайков:", totalLikes);
+    addInfoItem("Максимально лайков от одного:", maxLikes);
+    addInfoItem("Чемпион лайков:", champion || "—");
+
+    // популярные карточки
+    const popularCards = [...cards]
+      .sort((a, b) => b.likes.length - a.likes.length)
+      .slice(0, 3);
+
+    popularCards.forEach((card) => {
+      const userItem = infoUserTemplate.cloneNode(true);
+      const li = userItem.querySelector("li");
+      li.textContent = card.name;
+      infoUsersList.append(li);
+    });
+
+    openModalWindow(infoPopup);
+  })
+  .catch(console.log);
+};
+
+
 
 // EventListeners
 profileForm.addEventListener("submit", handleProfileFormSubmit);
 cardForm.addEventListener("submit", handleCardFormSubmit);
 avatarForm.addEventListener("submit", handleAvatarFromSubmit);
+logo.addEventListener("click", handleOpenInfoPopup);
 
 openProfileFormButton.addEventListener("click", () => {
   profileTitleInput.value = profileTitle.textContent;
@@ -132,6 +225,18 @@ const handleDeleteCard = (cardId, cardElement) => {
   });
 };
 
+const handleLikeCard = (cardId, likeButton, likeCounter) => {
+  const isLiked = likeButton.classList.contains("card__like-button_is-active");
+
+  changeLikeCardStatus(cardId, isLiked)
+    .then((updatedCard) => {
+      likeButton.classList.toggle("card__like-button_is-active");
+      likeCounter.textContent = updatedCard.likes.length;
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+};
 
 
 // отображение карточек
@@ -176,7 +281,7 @@ Promise.all([getCardList(), getUserInfo()])
     placesWrap.append(
       createCardElement(cardData, {
         onPreviewPicture: handlePreviewPicture,
-        onLikeIcon: likeCard,
+        onLikeIcon: handleLikeCard,
         onDeleteCard: handleDeleteCard,
         userId: currentUserId,
       })
