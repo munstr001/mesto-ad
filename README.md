@@ -1,7 +1,4 @@
-https://github.com/munstr001/mesto-ad
+# MESTO - 2
 
-Стартовый набор для выполнения проектной работы Место
+https://github.com/munstr001/mesto-ad/tree/mesto-2
 
-Для запуска приложения необходимо использовать live-server
-![изображение live-server](image.png)
-Live-server является расширением VSCode
